@@ -466,5 +466,32 @@ struct LayerNormalizationOp : public NaryNodeOp {
 
 };
 
+struct ConvolutionOp : public NaryNodeOp {
+  ConvolutionOp(const std::vector<Expr>& nodes)
+    : NaryNodeOp(nodes) {}
+
+  Shape newShape(const std::vector<Expr>& nodes) {
+    Shape shape1 = nodes[0]->shape();
+
+    return shape1;
+  }
+
+  NodeOps forwardOps() {
+    return {};
+  }
+
+  NodeOps backwardOps() {
+    return {};
+  }
+
+
+  const std::string type() {
+    return "layer_convolution";
+  }
+
+  protected:
+
+};
+
 
 }

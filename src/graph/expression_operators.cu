@@ -141,6 +141,11 @@ Expr layer_norm(Expr x, Expr gamma, Expr beta) {
   return Expression<LayerNormalizationOp>(nodes);
 }
 
+Expr convolution(Expr x, Expr filters) {
+  std::vector<Expr> nodes = {x, filters};
+  return Expression<ConvolutionOp>(nodes);
+}
+
 //Expr batch_norm(Expr x, Expr gamma, Expr beta) {
 //  auto mju = mean(x, keywords::axis=0);
 //  auto xmmju = x - mju;
