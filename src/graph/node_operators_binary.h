@@ -468,13 +468,31 @@ struct LayerNormalizationOp : public NaryNodeOp {
 
 struct ConvolutionOp : public NaryNodeOp {
   ConvolutionOp(const std::vector<Expr>& nodes)
-    : NaryNodeOp(nodes) {}
+    : NaryNodeOp(nodes) {
+    cudnnCreateConvolutionDescriptor(&convDesc_);
+    cudnnSetConvolution2dDescriptor(convDesc_,
+          0, 1,  // padding
+          1, 1,  // strides
+          1, 1,  // upscales
+          CUDNN_CONVOLUTION);
 
-  Shape newShape(const std::vector<Expr>& nodes) {
-    Shape shape1 = nodes[0]->shape();
+    cudnnCreateFilterDescriptor(&filterDesc_);
+    cudnnSetFilter4dDescriptor(
+            filterDesc_,
+            CUDNN_DATA_FLOAT,
+            CUDNN_TENSOR_NCHW,
+            nodes[1]->shape()[0],nodes[1]->shape()[1],
+            nodes[1]->shape()[2], nodes[1]->shape()[3]
+    );
 
-    return shape1;
+    cudnnGetConvolution2dForwardOutputDim(
+      convDesc_,
+      nodes[0]->val()->cudnn(),
+      filterDesc_,
+      shape_.begin(), shape_.begin() + 1, shape_.begin() + 2, shape_.begin() + 3
+    );
   }
+
 
   NodeOps forwardOps() {
     return {};
@@ -489,7 +507,14 @@ struct ConvolutionOp : public NaryNodeOp {
     return "layer_convolution";
   }
 
+  virtual ~ConvolutionOp() {
+    cudnnDestroyConvolutionDescriptor(convDesc_);
+    cudnnDestroyFilterDescriptor(filterDesc_);
+  }
+
   protected:
+    cudnnConvolutionDescriptor_t convDesc_;
+    cudnnFilterDescriptor_t filterDesc_;
 
 };
 
