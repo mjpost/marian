@@ -493,7 +493,6 @@ struct ConvolutionOp : public NaryNodeOp {
     );
   }
 
-
   NodeOps forwardOps() {
     return {};
   }
