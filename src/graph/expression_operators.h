@@ -163,5 +163,6 @@ Expr dropout(Expr x, Args ...args) {
   return x * mask;
 }
 
+Expr convolution(Expr x, Expr filters);
 
 }

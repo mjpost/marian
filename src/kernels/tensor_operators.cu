@@ -24,6 +24,10 @@
 
 #include "3rd_party/reduce_all.h"
 
+#ifdef CUDNN
+#include <cudnn.h>
+#endif
+
 namespace marian {
 
 
@@ -34,11 +38,13 @@ cublasHandle_t create_handle(size_t device) {
   return cublasHandle;
 }
 
-//static cudnnHandle_t create_handle_dnn() {
-//  cudnnHandle_t cudnnHandle;
-//  cudnnCreate(&cudnnHandle);
-//  return cudnnHandle;
-//}
+#ifdef CUDNN
+cudnnHandle_t create_handle_dnn() {
+ cudnnHandle_t cudnnHandle;
+ cudnnCreate(&cudnnHandle);
+ return cudnnHandle;
+}
+#endif
 
 //cudnnHandle_t cudnnHandle = create_handle_dnn();
 
