@@ -518,6 +518,7 @@ struct ConvolutionOp : public NaryNodeOp {
   }
 
   NodeOps backwardOps() {
+    cudaSetDevice(adj_->getDevice());
     const float alpha = 1.0f;
     const float beta = 0.0f;
     return {
@@ -551,7 +552,6 @@ struct ConvolutionOp : public NaryNodeOp {
       )
     };
   }
-
 
   const std::string type() {
     return "layer_convolution";

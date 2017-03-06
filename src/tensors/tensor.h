@@ -107,9 +107,9 @@ class TensorBase : public std::enable_shared_from_this<TensorBase> {
     void copyFrom(Tensor);
 
 #ifdef CUDNN
-      cudnnTensorDescriptor_t cudnn() {
-            return cudnnDesc_;
-          }
+    cudnnTensorDescriptor_t& cudnn() {
+      return cudnnDesc_;
+    }
 #endif
 
     std::string debug();
