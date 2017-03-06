@@ -469,6 +469,8 @@ struct LayerNormalizationOp : public NaryNodeOp {
 struct ConvolutionOp : public NaryNodeOp {
   ConvolutionOp(const std::vector<Expr>& nodes)
     : NaryNodeOp(nodes) {
+    cudnnCreate(&cudnnHandle_);
+
     cudnnCreateConvolutionDescriptor(&convDesc_);
     cudnnSetConvolution2dDescriptor(convDesc_,
           0, 1,  // padding
@@ -495,11 +497,59 @@ struct ConvolutionOp : public NaryNodeOp {
 
 
   NodeOps forwardOps() {
-    return {};
+    const float alpha = 1.0f;
+    const float beta = 0.0f;
+    cudaSetDevice(val_->getDevice());
+
+    return {
+      NodeOp(
+          cudnnConvolutionForward(cudnnHandle_,
+                                  &alpha,
+                                  children_[0]->val()->cudnn(), children_[0]->val()->data(),
+                                  filterDesc_,
+                                  children_[1]->val()->data(),
+                                  convDesc_,
+                                  CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM,
+                                  nullptr, 0,
+                                  &beta,
+                                  val_->cudnn(), val_->data())
+          )
+    };
   }
 
   NodeOps backwardOps() {
-    return {};
+    const float alpha = 1.0f;
+    const float beta = 0.0f;
+    return {
+      NodeOp(
+          cudnnConvolutionBackwardData(cudnnHandle_,
+           &alpha,
+           filterDesc_,
+           children_[1]->val()->data(),
+           adj_->cudnn(),
+           adj_->data(),
+           convDesc_,
+           CUDNN_CONVOLUTION_BWD_DATA_ALGO_0,
+           nullptr, 0,
+           &beta,
+           children_[0]->grad()->cudnn(),
+           children_[0]->grad()->data())
+      ),
+      NodeOp(
+          cudnnConvolutionBackwardFilter(cudnnHandle_,
+              &alpha,
+              children_[0]->val()->cudnn(),
+              children_[0]->val()->data(),
+              adj_->cudnn(),
+              adj_->data(),
+              convDesc_,
+              CUDNN_CONVOLUTION_BWD_FILTER_ALGO_0,
+              nullptr, 0,
+              &beta,
+              filterDesc_,
+              children_[1]->grad()->data())
+      )
+    };
   }
 
 
@@ -510,9 +560,11 @@ struct ConvolutionOp : public NaryNodeOp {
   virtual ~ConvolutionOp() {
     cudnnDestroyConvolutionDescriptor(convDesc_);
     cudnnDestroyFilterDescriptor(filterDesc_);
+    cudnnDestroy(cudnnHandle_);
   }
 
   protected:
+    cudnnHandle_t cudnnHandle_;
     cudnnConvolutionDescriptor_t convDesc_;
     cudnnFilterDescriptor_t filterDesc_;
 

@@ -5,6 +5,7 @@
 #include <fstream>
 
 #include "common/definitions.h"
+#include "common/logging.h"
 #include "graph/chainable.h"
 #include "graph/parameters.h"
 #include "graph/node_operators.h"

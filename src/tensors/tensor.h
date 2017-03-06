@@ -51,11 +51,10 @@ class TensorBase : public std::enable_shared_from_this<TensorBase> {
     {
 #ifdef CUDNN
        cudnnCreateTensorDescriptor(&cudnnDesc_);
-       cudnnSetTensor4dDescriptorEx(cudnnDesc_, CUDNN_DATA_FLOAT,
-                                   shape_[0], shape_[1],
-                                   shape_[2], shape_[3],
-                                   shape_.stride(0), shape_.stride(1),
-                                   shape_.stride(2), shape_.stride(3));
+       cudnnSetTensor4dDescriptor(cudnnDesc_,
+                                  CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
+                                  shape_[0], shape_[1],
+                                  shape_[2], shape_[3]);
 #endif
     }
 
@@ -108,7 +107,7 @@ class TensorBase : public std::enable_shared_from_this<TensorBase> {
     void copyFrom(Tensor);
 
 #ifdef CUDNN
-      cudnnTensorDescriptor_t& cudnn() {
+      cudnnTensorDescriptor_t cudnn() {
             return cudnnDesc_;
           }
 #endif
@@ -140,7 +139,7 @@ class DeviceGPU {
     size_t capacity() {
       return size_;
     }
-    
+
     size_t getDevice() {
       return device_;
     }
