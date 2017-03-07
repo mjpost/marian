@@ -141,9 +141,13 @@ Expr layer_norm(Expr x, Expr gamma, Expr beta) {
   return Expression<LayerNormalizationOp>(nodes);
 }
 
-Expr convolution(Expr x, Expr filters) {
+Expr convolution(Expr x, Expr filters, int hPad, int wPad) {
   std::vector<Expr> nodes = {x, filters};
-  return Expression<ConvolutionOp>(nodes);
+  return Expression<ConvolutionOp>(nodes, hPad, wPad);
+}
+
+Expr max_pooling(Expr x, int hPad, int wPad) {
+  return Expression<MaxPoolingOp>(x, hPad, wPad);
 }
 
 //Expr batch_norm(Expr x, Expr gamma, Expr beta) {

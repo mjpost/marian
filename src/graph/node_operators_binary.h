@@ -6,6 +6,16 @@
 #include "kernels/thrust_functions.h"
 #include "kernels/tensor_operators.h"
 
+#include <cudnn.h>
+
+#define CUDA_CALL(x) do { if((x) != cudaSuccess) { \
+      printf("Error at %s:%d\n",__FILE__,__LINE__);     \
+      return EXIT_FAILURE;}} while(0)
+
+#define CUDNN_CALL(x) do { if((x) != CUDNN_STATUS_SUCCESS) { \
+      printf("Error (%s) at %s:%d\n",cudnnGetErrorString(x),__FILE__,__LINE__);     \
+      }} while(0)
+
 namespace marian {
 
 struct DotNodeOp : public NaryNodeOp {
@@ -467,32 +477,49 @@ struct LayerNormalizationOp : public NaryNodeOp {
 };
 
 struct ConvolutionOp : public NaryNodeOp {
-  ConvolutionOp(const std::vector<Expr>& nodes)
+  ConvolutionOp(const std::vector<Expr>& nodes, int hPad, int wPad)
     : NaryNodeOp(nodes) {
-    cudnnCreate(&cudnnHandle_);
+    CUDNN_CALL( cudnnCreate(&cudnnHandle_) );
 
-    cudnnCreateConvolutionDescriptor(&convDesc_);
-    cudnnSetConvolution2dDescriptor(convDesc_,
-          0, 1,  // padding
+    cudnnCreateTensorDescriptor(&xDesc_);
+    cudnnSetTensor4dDescriptor(xDesc_,
+                              CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
+                              nodes[0]->shape()[0], nodes[0]->shape()[1],
+                              nodes[0]->shape()[2], nodes[0]->shape()[3]);
+
+    CUDNN_CALL( cudnnCreateConvolutionDescriptor(&convDesc_) );
+    CUDNN_CALL( cudnnSetConvolution2dDescriptor(convDesc_,
+          hPad, wPad,  // padding
           1, 1,  // strides
           1, 1,  // upscales
-          CUDNN_CONVOLUTION);
+          CUDNN_CONVOLUTION) );
 
-    cudnnCreateFilterDescriptor(&filterDesc_);
-    cudnnSetFilter4dDescriptor(
+    CUDNN_CALL( cudnnCreateFilterDescriptor(&filterDesc_) );
+    CUDNN_CALL( cudnnSetFilter4dDescriptor(
             filterDesc_,
             CUDNN_DATA_FLOAT,
             CUDNN_TENSOR_NCHW,
             nodes[1]->shape()[0],nodes[1]->shape()[1],
             nodes[1]->shape()[2], nodes[1]->shape()[3]
-    );
+    ) );
 
-    cudnnGetConvolution2dForwardOutputDim(
+    CUDNN_CALL( cudnnGetConvolution2dForwardOutputDim(
       convDesc_,
-      nodes[0]->val()->cudnn(),
+      xDesc_,
       filterDesc_,
       shape_.begin(), shape_.begin() + 1, shape_.begin() + 2, shape_.begin() + 3
-    );
+    ) );
+    cudnnCreateTensorDescriptor(&yDesc_);
+    cudnnSetTensor4dDescriptor(yDesc_,
+                              CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
+                              shape_[0], shape_[1],
+                              shape_[2], shape_[3]);
+
+    cudnnCreateTensorDescriptor(&adjDesc_);
+    cudnnSetTensor4dDescriptor(adjDesc_,
+                              CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
+                              shape_[0], shape_[1],
+                              shape_[2], shape_[3]);
   }
 
 
@@ -505,14 +532,14 @@ struct ConvolutionOp : public NaryNodeOp {
       NodeOp(
           cudnnConvolutionForward(cudnnHandle_,
                                   &alpha,
-                                  children_[0]->val()->cudnn(), children_[0]->val()->data(),
+                                  xDesc_, children_[0]->val()->data(),
                                   filterDesc_,
                                   children_[1]->val()->data(),
                                   convDesc_,
                                   CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM,
                                   nullptr, 0,
                                   &beta,
-                                  val_->cudnn(), val_->data())
+                                  yDesc_, val_->data())
           )
     };
   }
@@ -520,28 +547,28 @@ struct ConvolutionOp : public NaryNodeOp {
   NodeOps backwardOps() {
     cudaSetDevice(adj_->getDevice());
     const float alpha = 1.0f;
-    const float beta = 0.0f;
+    const float beta = 1.0f;
     return {
-      NodeOp(
+      NodeOp(CUDNN_CALL(
           cudnnConvolutionBackwardData(cudnnHandle_,
            &alpha,
            filterDesc_,
            children_[1]->val()->data(),
-           adj_->cudnn(),
+           adjDesc_,
            adj_->data(),
            convDesc_,
            CUDNN_CONVOLUTION_BWD_DATA_ALGO_0,
            nullptr, 0,
            &beta,
-           children_[0]->grad()->cudnn(),
+           xDesc_,
            children_[0]->grad()->data())
-      ),
-      NodeOp(
+      )),
+      NodeOp(CUDNN_CALL(
           cudnnConvolutionBackwardFilter(cudnnHandle_,
               &alpha,
-              children_[0]->val()->cudnn(),
+              xDesc_,
               children_[0]->val()->data(),
-              adj_->cudnn(),
+              adjDesc_,
               adj_->data(),
               convDesc_,
               CUDNN_CONVOLUTION_BWD_FILTER_ALGO_0,
@@ -549,7 +576,7 @@ struct ConvolutionOp : public NaryNodeOp {
               &beta,
               filterDesc_,
               children_[1]->grad()->data())
-      )
+      ))
     };
   }
 
@@ -561,12 +588,18 @@ struct ConvolutionOp : public NaryNodeOp {
     cudnnDestroyConvolutionDescriptor(convDesc_);
     cudnnDestroyFilterDescriptor(filterDesc_);
     cudnnDestroy(cudnnHandle_);
+    cudnnDestroyTensorDescriptor(xDesc_);
+    cudnnDestroyTensorDescriptor(adjDesc_);
+    cudnnDestroyTensorDescriptor(yDesc_);
   }
 
   protected:
     cudnnHandle_t cudnnHandle_;
     cudnnConvolutionDescriptor_t convDesc_;
     cudnnFilterDescriptor_t filterDesc_;
+    cudnnTensorDescriptor_t xDesc_;
+    cudnnTensorDescriptor_t adjDesc_;
+    cudnnTensorDescriptor_t yDesc_;
 
 };
 

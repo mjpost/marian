@@ -19,81 +19,49 @@ int main(int argc, char** argv) {
 
   auto options = New<Config>(argc, argv, false);
 
-  int batchSize = 128;
+  int batchSize = 1;
 
-  std::vector<float> temp(batchSize * 3072);
+  std::vector<float> temp(batchSize * 9);
+  for (size_t i = 0; i < temp.size(); ++i) {
+    temp[i] = i + 1;
+  }
   std::vector<float> temp2(3072 * 3072);
   std::vector<float> indeces(batchSize, 0.f);
 
-  std::random_device rnd_device;
-  // Specify the engine and distribution.
-  std::mt19937 mersenne_engine(rnd_device());
-  mersenne_engine.seed(1234);
-  std::uniform_real_distribution<float> dist(-1.f, 1.f);
 
-  auto gen = std::bind(dist, mersenne_engine);
-  std::generate(std::begin(temp), std::end(temp), gen);
-  std::generate(std::begin(temp2), std::end(temp2), gen);
-
+  std::cerr << "Building graph" << std::endl;
   {
     auto graph = New<ExpressionGraph>();
     graph->setDevice(0);
     graph->reserveWorkspaceMB(128);
 
-    auto x = graph->param("x", {batchSize, 3072}, init=inits::from_vector(temp));
-    auto gamma = graph->param("gamma", {1, 3072}, init=inits::from_value(2.0));
-    auto beta = graph->param("beta", {1, 3072}, init=inits::zeros);
+    std::cerr << "Setting X" << std::endl;
+    auto x = graph->param("x", {batchSize, 1, 3, 3}, init=inits::from_vector(temp));
 
-    auto y = layer_norm(x, gamma, beta);
+    std::cerr << "Setting filter" << std::endl;
+    auto filter = graph->param("gamma", {16, 1, 3, 2}, init=inits::from_value(1.0f));
 
-    auto yLogitsL1 = Dense("ff_logit_l1", 512,
-                             activation=act::tanh,
-                             normalize=true)
-                         (y, y, y);
+    std::cerr << "Setting convolution" << std::endl;
+    auto y = convolution(x, filter);
+    auto pool = max_pooling(y);
 
-    auto yLogitsL2 = Dense("ff_logit_l2", 50000)
-                         (yLogitsL1);
+    auto idx = graph->constant(shape={16, 1},
+                               init=inits::from_value(1.0f));
+    auto ce = cross_entropy(pool, idx);
+    auto cost = mean(sum(ce, keywords::axis=1), keywords::axis=1);
 
-    auto idx = graph->constant(shape={(int)indeces.size(), 1},
-                               init=inits::from_vector(indeces));
-    auto ce = cross_entropy(yLogitsL2, idx);
-    auto cost = mean(sum(ce, keywords::axis=2), keywords::axis=0);
-
+    debug(y, "y");
     debug(x, "x");
-    debug(gamma, "gamma");
-    debug(beta, "beta");
+    debug(ce, "ce");
+    debug(pool, "pool");
+    debug(cost, "cost");
+    debug(filter, "filter");
 
+    std::cerr << "Forward" << std::endl;
     graph->forward();
+    std::cerr << "Backward" << std::endl;
     graph->backward();
   }
-
-  /*{
-    auto graph = New<ExpressionGraph>();
-    graph->setDevice(0);
-    graph->reserveWorkspaceMB(128);
-
-    auto x = graph->param("x", {batchSize, 3072}, init=inits::from_vector(temp));
-    auto gamma = graph->param("gamma", {1, 3072}, init=inits::from_value(2.0));
-    auto beta = graph->param("beta", {1, 3072}, init=inits::zeros);
-
-    auto y = layer_norm(x, gamma, beta);
-
-    auto w = graph->param("w", {3072, 3072}, init=inits::from_vector(temp2));
-
-    auto y2 = tanh(layer_norm(dot(y, w), gamma, beta));
-
-    auto idx = graph->constant(shape={(int)indeces.size(), 1},
-                               init=inits::from_vector(indeces));
-    auto ce = cross_entropy(y2, idx);
-    auto cost = mean(sum(ce, keywords::axis=2), keywords::axis=0);
-
-    debug(x, "x");
-    debug(gamma, "gamma");
-    debug(beta, "beta");
-
-    graph->forward();
-    graph->backward();
-  }*/
 
   return 0;
 }

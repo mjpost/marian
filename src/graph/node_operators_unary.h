@@ -5,6 +5,16 @@
 #include "kernels/tensor_operators.h"
 #include "kernels/thrust_functions.h"
 
+
+#include <cudnn.h>
+
+#define CUDA_CALL(x) do { if((x) != cudaSuccess) { \
+      printf("Error at %s:%d\n",__FILE__,__LINE__);     \
+      return EXIT_FAILURE;}} while(0)
+
+#define CUDNN_CALL(x) do { if((x) != CUDNN_STATUS_SUCCESS) { \
+      printf("Error (%s) at %s:%d\n",cudnnGetErrorString(x),__FILE__,__LINE__);     \
+      }} while(0)
 namespace marian {
 
 struct UnaryNodeOp : public NaryNodeOp {
@@ -755,6 +765,114 @@ struct TimestepNodeOp : public UnaryNodeOp {
     }
     return hash_;
   }
+
+};
+
+struct MaxPoolingOp : public UnaryNodeOp {
+  MaxPoolingOp(Expr x, int hPad, int wPad)
+    : UnaryNodeOp(x) {
+    CUDNN_CALL( cudnnCreate(&cudnnHandle_) );
+
+    CUDNN_CALL( cudnnCreateTensorDescriptor(&xDesc_) );
+    CUDNN_CALL( cudnnSetTensor4dDescriptor(xDesc_,
+                              CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
+                              x->shape()[0], x->shape()[1],
+                              x->shape()[2], x->shape()[3]) );
+
+
+    CUDNN_CALL( cudnnCreatePoolingDescriptor(&poolingDesc_) );
+    CUDNN_CALL( cudnnSetPooling2dDescriptor(poolingDesc_,
+          CUDNN_POOLING_MAX,
+          CUDNN_NOT_PROPAGATE_NAN,
+          x->shape()[2], x->shape()[3],
+          hPad, wPad,
+          1,1) //strides
+    );
+
+    cudnnGetPooling2dForwardOutputDim(poolingDesc_, xDesc_,
+                                      shape_.begin(), shape_.begin() + 1,
+                                      shape_.begin() + 2, shape_.begin() + 3);
+
+    std::cerr << x->shape() << std::endl;
+    std::cerr << shape_ << std::endl;
+
+    cudnnCreateTensorDescriptor(&yDesc_);
+    cudnnSetTensor4dDescriptor(yDesc_,
+                              CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
+                              shape_[0], shape_[1],
+                              shape_[2], shape_[3]);
+
+    cudnnCreateTensorDescriptor(&adjDesc_);
+    cudnnSetTensor4dDescriptor(adjDesc_,
+                              CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
+                              shape_[0], shape_[1],
+                              shape_[2], shape_[3]);
+  }
+
+
+  NodeOps forwardOps() {
+    const float alpha = 1.0f;
+    const float beta = 0.0f;
+
+    cudaSetDevice(val_->getDevice());
+
+    return {
+      NodeOp(
+        CUDNN_CALL( cudnnPoolingForward(cudnnHandle_,
+                            poolingDesc_,
+                            &alpha,
+                            xDesc_,
+                            children_[0]->val()->data(),
+                            &beta,
+                            yDesc_,
+                            val_->data()))
+        )
+    };
+  }
+
+  NodeOps backwardOps() {
+    cudaSetDevice(adj_->getDevice());
+    const float alpha = 1.0f;
+    const float beta = 1.0f;
+    return {
+      NodeOp(
+          CUDNN_CALL( cudnnPoolingBackward(cudnnHandle_,
+                                           poolingDesc_,
+                                           &alpha,
+                    yDesc_,
+                    val_->data(),
+                    adjDesc_,
+                    adj_->data(),
+                    xDesc_,
+                    children_[0]->val()->data(),
+                    &beta,
+                    xDesc_,
+                    children_[0]->grad()->data() )
+
+          )
+        )
+    };
+  }
+
+  const std::string type() {
+    return "layer_max_pooling";
+  }
+
+  virtual ~MaxPoolingOp() {
+    cudnnDestroy(cudnnHandle_);
+
+    cudnnDestroyPoolingDescriptor(poolingDesc_);
+    cudnnDestroyTensorDescriptor(xDesc_);
+    cudnnDestroyTensorDescriptor(adjDesc_);
+    cudnnDestroyTensorDescriptor(yDesc_);
+  }
+
+  protected:
+    cudnnHandle_t cudnnHandle_;
+    cudnnPoolingDescriptor_t poolingDesc_;
+    cudnnTensorDescriptor_t xDesc_;
+    cudnnTensorDescriptor_t adjDesc_;
+    cudnnTensorDescriptor_t yDesc_;
 
 };
 
