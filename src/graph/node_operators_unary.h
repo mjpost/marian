@@ -769,7 +769,7 @@ struct TimestepNodeOp : public UnaryNodeOp {
 };
 
 struct MaxPoolingOp : public UnaryNodeOp {
-  MaxPoolingOp(Expr x, int hPad, int wPad)
+  MaxPoolingOp(Expr x, int hPad, int wPad, int h = -1, int w = -1)
     : UnaryNodeOp(x) {
     CUDNN_CALL( cudnnCreate(&cudnnHandle_) );
 
@@ -781,32 +781,31 @@ struct MaxPoolingOp : public UnaryNodeOp {
 
 
     CUDNN_CALL( cudnnCreatePoolingDescriptor(&poolingDesc_) );
+
+    if (h == -1) {
+      h = x->shape()[2];
+    }
+    if (w == -1) {
+      w = x->shape()[3];
+    }
+
     CUDNN_CALL( cudnnSetPooling2dDescriptor(poolingDesc_,
           CUDNN_POOLING_MAX,
           CUDNN_NOT_PROPAGATE_NAN,
-          x->shape()[2], x->shape()[3],
+          h, w,
           hPad, wPad,
           1,1) //strides
     );
 
-    cudnnGetPooling2dForwardOutputDim(poolingDesc_, xDesc_,
+    CUDNN_CALL(cudnnGetPooling2dForwardOutputDim(poolingDesc_, xDesc_,
                                       shape_.begin(), shape_.begin() + 1,
-                                      shape_.begin() + 2, shape_.begin() + 3);
+                                      shape_.begin() + 2, shape_.begin() + 3) );
 
-    std::cerr << x->shape() << std::endl;
-    std::cerr << shape_ << std::endl;
-
-    cudnnCreateTensorDescriptor(&yDesc_);
-    cudnnSetTensor4dDescriptor(yDesc_,
+    CUDNN_CALL( cudnnCreateTensorDescriptor(&yDesc_) );
+    CUDNN_CALL( cudnnSetTensor4dDescriptor(yDesc_,
                               CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
                               shape_[0], shape_[1],
-                              shape_[2], shape_[3]);
-
-    cudnnCreateTensorDescriptor(&adjDesc_);
-    cudnnSetTensor4dDescriptor(adjDesc_,
-                              CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-                              shape_[0], shape_[1],
-                              shape_[2], shape_[3]);
+                              shape_[2], shape_[3]) );
   }
 
 
@@ -836,20 +835,18 @@ struct MaxPoolingOp : public UnaryNodeOp {
     const float beta = 1.0f;
     return {
       NodeOp(
-          CUDNN_CALL( cudnnPoolingBackward(cudnnHandle_,
-                                           poolingDesc_,
-                                           &alpha,
-                    yDesc_,
-                    val_->data(),
-                    adjDesc_,
-                    adj_->data(),
-                    xDesc_,
-                    children_[0]->val()->data(),
-                    &beta,
-                    xDesc_,
-                    children_[0]->grad()->data() )
-
-          )
+        CUDNN_CALL( cudnnPoolingBackward(cudnnHandle_,
+                          poolingDesc_,
+                          &alpha,
+                          yDesc_,
+                          val_->data(),
+                          yDesc_,
+                          adj_->data(),
+                          xDesc_,
+                          children_[0]->val()->data(),
+                          &beta,
+                          xDesc_,
+                          children_[0]->grad()->data()))
         )
     };
   }
@@ -859,19 +856,16 @@ struct MaxPoolingOp : public UnaryNodeOp {
   }
 
   virtual ~MaxPoolingOp() {
-    cudnnDestroy(cudnnHandle_);
-
-    cudnnDestroyPoolingDescriptor(poolingDesc_);
-    cudnnDestroyTensorDescriptor(xDesc_);
-    cudnnDestroyTensorDescriptor(adjDesc_);
-    cudnnDestroyTensorDescriptor(yDesc_);
+    CUDNN_CALL( cudnnDestroy(cudnnHandle_) );
+    CUDNN_CALL( cudnnDestroyPoolingDescriptor(poolingDesc_) );
+    CUDNN_CALL( cudnnDestroyTensorDescriptor(xDesc_) );
+    CUDNN_CALL( cudnnDestroyTensorDescriptor(yDesc_) );
   }
 
   protected:
     cudnnHandle_t cudnnHandle_;
     cudnnPoolingDescriptor_t poolingDesc_;
     cudnnTensorDescriptor_t xDesc_;
-    cudnnTensorDescriptor_t adjDesc_;
     cudnnTensorDescriptor_t yDesc_;
 
 };

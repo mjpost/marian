@@ -167,6 +167,7 @@ class ExpressionGraph : public std::enable_shared_from_this<ExpressionGraph> {
      *    and that all backward pass computations have been performed.
      */
     void backward() {
+      for (auto& t : topNodes_) std::cerr << t->name() << std::endl;
       UTIL_THROW_IF2(topNodes_.size() > 1,
         "There are more than one top most node for backward step");
 

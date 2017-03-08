@@ -9,7 +9,7 @@
 #include <iostream>
 #include <functional>
 
-#include "layers/generic.h"
+#include "layers/convolution.h"
 #include "marian.h"
 
 int main(int argc, char** argv) {
@@ -26,6 +26,10 @@ int main(int argc, char** argv) {
     temp[i] = i + 1;
   }
 
+  const int numKernels = 6;
+  const int kernelHeight = 3;
+  const int kernelWidth = 2;
+
   std::cerr << "Building graph" << std::endl;
   {
     auto graph = New<ExpressionGraph>();
@@ -34,32 +38,22 @@ int main(int argc, char** argv) {
 
     auto x = graph->param("x", {batchSize, 1, 3, 3}, init=inits::from_vector(temp));
 
-    auto filter = graph->param("filter", {6, 1, 3, 2}, init=inits::from_value(1.0f));
+    auto convLayer = Convolution("conv_layer")(x, numKernels, kernelHeight, kernelWidth, 0,0,
+        -1, -1, 0, 0);
 
-    auto y = convolution(x, filter);
-    auto pool = max_pooling(y);
+    /* auto y = convolution(x, filter); */
+    /* auto pool = max_pooling(y); */
 
-    auto cost = sum(pool, keywords::axis=1);
+    auto cost = sum(convLayer, keywords::axis=1);
 
-    debug(y, "y");
     debug(x, "x");
-    debug(pool, "pool");
+    debug(convLayer, "conv");
     debug(cost, "cost");
-    debug(filter, "filter");
 
     std::cerr << "Forward" << std::endl;
     graph->forward();
     std::cerr << "Backward" << std::endl;
     graph->backward();
-
-    std::cerr << "Forward" << std::endl;
-    graph->forward();
-    std::cerr << "Backward" << std::endl;
-    graph->backward();
-
-    std::vector<float> tmp(50);
-    filter->grad() >> tmp;
-
   }
 
   return 0;

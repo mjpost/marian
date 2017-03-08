@@ -146,8 +146,8 @@ Expr convolution(Expr x, Expr filters, int hPad, int wPad) {
   return Expression<ConvolutionOp>(nodes, hPad, wPad);
 }
 
-Expr max_pooling(Expr x, int hPad, int wPad) {
-  return Expression<MaxPoolingOp>(x, hPad, wPad);
+Expr max_pooling(Expr x, int hPad, int wPad, int height, int width) {
+  return Expression<MaxPoolingOp>(x, hPad, wPad, height, width);
 }
 
 //Expr batch_norm(Expr x, Expr gamma, Expr beta) {

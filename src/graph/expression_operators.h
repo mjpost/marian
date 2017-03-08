@@ -165,6 +165,6 @@ Expr dropout(Expr x, Args ...args) {
 
 Expr convolution(Expr x, Expr filters, int hPadding = 0, int wPadding = 0);
 
-Expr max_pooling(Expr x, int hPadding = 0, int wPadding = 0);
+Expr max_pooling(Expr x, int hPadding = 0, int wPadding = 0, int height = -1, int width = -1);
 
 }
