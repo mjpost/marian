@@ -6,6 +6,7 @@
 #include "kernels/thrust_functions.h"
 #include "kernels/tensor_operators.h"
 
+#ifdef CUDNN
 #include <cudnn.h>
 
 #define CUDA_CALL(x) do { if((x) != cudaSuccess) { \
@@ -15,6 +16,8 @@
 #define CUDNN_CALL(x) do { if((x) != CUDNN_STATUS_SUCCESS) { \
       printf("Error (%s) at %s:%d\n",cudnnGetErrorString(x),__FILE__,__LINE__);     \
       }} while(0)
+
+#endif
 
 namespace marian {
 
@@ -476,6 +479,7 @@ struct LayerNormalizationOp : public NaryNodeOp {
 
 };
 
+#ifdef CUDNN
 struct ConvolutionOp : public NaryNodeOp {
   ConvolutionOp(const std::vector<Expr>& nodes, int hPad, int wPad)
     : NaryNodeOp(nodes) {
@@ -596,6 +600,7 @@ struct ConvolutionOp : public NaryNodeOp {
     cudnnTensorDescriptor_t yDesc_;
 
 };
+#endif
 
 
 }

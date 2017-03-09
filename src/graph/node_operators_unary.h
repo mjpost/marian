@@ -6,6 +6,7 @@
 #include "kernels/thrust_functions.h"
 
 
+#ifdef CUDNN
 #include <cudnn.h>
 
 #define CUDA_CALL(x) do { if((x) != cudaSuccess) { \
@@ -15,6 +16,8 @@
 #define CUDNN_CALL(x) do { if((x) != CUDNN_STATUS_SUCCESS) { \
       printf("Error (%s) at %s:%d\n",cudnnGetErrorString(x),__FILE__,__LINE__);     \
       }} while(0)
+#endif
+
 namespace marian {
 
 struct UnaryNodeOp : public NaryNodeOp {
@@ -768,6 +771,7 @@ struct TimestepNodeOp : public UnaryNodeOp {
 
 };
 
+#ifdef CUDNN
 struct MaxPoolingOp : public UnaryNodeOp {
   MaxPoolingOp(Expr x, int hPad, int wPad, int h = -1, int w = -1)
     : UnaryNodeOp(x) {
@@ -869,5 +873,6 @@ struct MaxPoolingOp : public UnaryNodeOp {
     cudnnTensorDescriptor_t yDesc_;
 
 };
+#endif
 
 }

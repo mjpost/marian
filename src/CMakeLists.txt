@@ -39,13 +39,19 @@ cuda_add_executable(
 
 cuda_add_executable(
   marian_test
-  test/marian_test.cu
+test/marian_test.cu
 )
 
+if(CUDNN_FOUND)
 cuda_add_executable(
-  bn_test
-  test/bn_test.cu
+  conv_test_2
+  test/conv_test_2.cu
 )
+target_link_libraries(conv_test_2 marian_lib)
+target_link_libraries(conv_test_2 ${EXT_LIBS})
+cuda_add_cublas_to_target(conv_test_2)
+set_target_properties(conv_test_2 PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+endif(CUDNN_FOUND)
 
 cuda_add_executable(
   marian
@@ -62,9 +68,8 @@ target_link_libraries(tensor_test marian_lib)
 target_link_libraries(marian_test marian_lib)
 target_link_libraries(dropout_test marian_lib)
 target_link_libraries(marian_translate marian_lib)
-target_link_libraries(bn_test marian_lib)
 
-foreach(exec dropout_test tensor_test marian_test marian_translate marian bn_test)
+foreach(exec dropout_test tensor_test marian_test marian_translate marian)
   target_link_libraries(${exec} ${EXT_LIBS})
   cuda_add_cublas_to_target(${exec})
   set_target_properties(${exec} PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
