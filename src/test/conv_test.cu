@@ -20,13 +20,13 @@ int main() {
   cudnnCreate(&cudnnHandle);
   std::cerr << " DONE\n";
 
-  int numWords = 20;
-  int dimWord = 100;
-  int numBatches = 1;
+  int numWords = 4;
+  int dimWord = 3;
+  int numBatches = 2;
   int numLayers = 1;
 
   std::cerr << "Allocating sample data (embeddings)...";
-  std::vector<float> embeddings(numWords * dimWord);
+  std::vector<float> embeddings(numBatches * numWords * dimWord);
   for(int i = 0; i < numWords * dimWord; ++i) {
     embeddings[i] = i;
   }
@@ -38,14 +38,14 @@ int main() {
   cudnnTensorDescriptor_t embTensor;
   CUDNN_CALL( cudnnCreateTensorDescriptor(&embTensor) );
   CUDNN_CALL( cudnnSetTensor4dDescriptor(embTensor, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
-                             numBatches, numLayers, dimWord, numWords) );
+                             numBatches, 1, numWords, dimWord) );
   std::cerr << " DONE\n";
 
   std::cerr << "Creating and setting Conv Descriptor...";
   cudnnConvolutionDescriptor_t convDesc;
   CUDNN_CALL( cudnnCreateConvolutionDescriptor(&convDesc) );
   CUDNN_CALL( cudnnSetConvolution2dDescriptor(convDesc,
-      0, 1,  // padding
+      1, 0,  // padding
       1, 1,  // strides
       1, 1,  // upscales
       CUDNN_CONVOLUTION) );
@@ -53,23 +53,26 @@ int main() {
   std::cerr << " DONE\n";
 
 
-
   std::cerr << "Creating and setting Filters...";
   cudnnFilterDescriptor_t filterDesc;
   CUDNN_CALL( cudnnCreateFilterDescriptor(&filterDesc) );
 
-  int numFilters = 2;
-  int filterWidth = 3;
+  int numFilters = 1;
+
+  int filterHeight = 3;
+  int filterWidth = 1;
 
   CUDNN_CALL( cudnnSetFilter4dDescriptor(
         filterDesc,
         CUDNN_DATA_FLOAT,
         CUDNN_TENSOR_NCHW,
         numFilters, 1,
-        dimWord, filterWidth
-  ) );
-  std::vector<float> filters(numFilters * dimWord * filterWidth);
-  for (auto& v: filters) v = 1.0f;
+        filterHeight, filterWidth));
+
+  std::vector<float> filters(numFilters * filterWidth * filterHeight);
+  for (size_t i = 0; i < filters.size(); ++i) {
+    filters[i] = 1;
+  }
   float* d_filters;
   CUDA_CALL( cudaMalloc(&d_filters, numFilters * dimWord * filterWidth * sizeof(float)) );
   CUDA_CALL( cudaMemcpy(d_filters, filters.data(), filters.size() * sizeof(float), cudaMemcpyHostToDevice ) );
@@ -86,7 +89,7 @@ int main() {
   CUDA_CALL( cudaMalloc(&d_output, outputN * outputC * outputH * outputW * sizeof(float)) );
   cudnnTensorDescriptor_t outputDesc;
   CUDNN_CALL( cudnnCreateTensorDescriptor(&outputDesc) );
-  CUDNN_CALL( cudnnSetTensor4dDescriptor(outputDesc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
+  CUDNN_CALL( cudnnSetTensor4dDescriptor(outputDesc, CUDNN_TENSOR_NHWC, CUDNN_DATA_FLOAT,
                              outputN, outputC, outputH, outputW) );
   std::cerr << " DONE\n";
   std::cerr << "output dim: " << outputN << " " << outputC << " " << outputH << " " << outputW << std::endl;
@@ -147,12 +150,10 @@ int main() {
   CUDA_CALL( cudaMemcpy(output.data(), d_output, sizeof(float) * outputN * outputC * outputH * outputW,
         cudaMemcpyDeviceToHost) );
 
-  for (size_t i = 0; i < numFilters; ++i) {
-    for (size_t j = 0; j < outputH * outputW; ++j) {
-      std::cerr << output[i * outputH * outputW + j] << " ";
+    for (size_t j = 0; j < output.size(); ++j) {
+      std::cerr << output[j] << " ";
     }
     std::cerr << std::endl;
-  }
 
   return 0;
 }
