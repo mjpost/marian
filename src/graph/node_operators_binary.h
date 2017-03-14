@@ -516,7 +516,7 @@ struct ConvolutionOp : public NaryNodeOp {
     ));
     CUDNN_CALL( cudnnCreateTensorDescriptor(&yDesc_) );
     CUDNN_CALL( cudnnSetTensor4dDescriptor(yDesc_,
-                              CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT,
+                              CUDNN_TENSOR_NHWC, CUDNN_DATA_FLOAT,
                               shape_[0], shape_[1],
                               shape_[2], shape_[3])
     );
