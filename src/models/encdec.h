@@ -11,6 +11,9 @@
 namespace marian {
 
 struct EncoderState {
+  EncoderState(Expr c, Expr m) : context(c), mask(m)
+  {}
+
   Expr context;
   Expr mask;
 };
