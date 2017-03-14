@@ -5,14 +5,15 @@
 
 namespace marian {
 
-  typedef AttentionCell<GRU, GlobalAttention, GRU> CGRU;
+typedef AttentionCell<GRU, GlobalAttention, GRU> CGRU;
 
-  class EncoderGNMT : public EncoderBase {
+class EncoderGNMT : public EncoderBase {
   public:
-    EncoderGNMT(Ptr<Config> options)
-     : EncoderBase(options) {}
+    template <class ...Args>
+    EncoderGNMT(Ptr<Config> options, Args... args)
+     : EncoderBase(options, args...) {}
 
-    std::tuple<Expr, Expr>
+    Ptr<EncoderState>
     build(Ptr<ExpressionGraph> graph,
           Ptr<data::CorpusBatch> batch,
           size_t batchIdx = 0) {
@@ -25,27 +26,29 @@ namespace marian {
       bool layerNorm = options_->get<bool>("normalize");
       bool skipDepth = options_->get<bool>("skip");
       size_t encoderLayers = options_->get<size_t>("layers-enc");
-      float dropoutRnn = options_->get<float>("dropout-rnn");
-      float dropoutSrc = options_->get<float>("dropout-src");
 
-      auto xEmb = Embedding("Wemb", dimSrcVoc, dimSrcEmb)(graph);
+      float dropoutRnn = inference_ ? 0 : options_->get<float>("dropout-rnn");
+      float dropoutSrc = inference_ ? 0 : options_->get<float>("dropout-src");
+
+      auto xEmb = Embedding(prefix_ + "_Wemb", dimSrcVoc, dimSrcEmb)(graph);
 
       Expr x, xMask;
       std::tie(x, xMask) = prepareSource(xEmb, batch, batchIdx);
 
       if(dropoutSrc) {
+        int dimBatch = x->shape()[0];
         int srcWords = x->shape()[2];
-        auto srcWordDrop = graph->dropout(dropoutSrc, {1, 1, srcWords});
+        auto srcWordDrop = graph->dropout(dropoutSrc, {dimBatch, 1, srcWords});
         x = dropout(x, mask=srcWordDrop);
       }
 
-      auto xFw = RNN<GRU>(graph, "encoder_bi",
+      auto xFw = RNN<GRU>(graph, prefix_ + "_bi",
                           dimSrcEmb, dimEncState,
                           normalize=layerNorm,
                           dropout_prob=dropoutRnn)
                          (x);
 
-      auto xBw = RNN<GRU>(graph, "encoder_bi_r",
+      auto xBw = RNN<GRU>(graph, prefix_ + "_bi_r",
                           dimSrcEmb, dimEncState,
                           normalize=layerNorm,
                           direction=dir::backward,
@@ -58,17 +61,17 @@ namespace marian {
         Expr xContext;
         std::vector<Expr> states;
         std::tie(xContext, states)
-          = MLRNN<GRU>(graph, "encoder", encoderLayers - 1,
+          = MLRNN<GRU>(graph, prefix_, encoderLayers - 1,
                        2 * dimEncState, dimEncState,
                        normalize=layerNorm,
                        skip=skipDepth,
                        dropout_prob=dropoutRnn)
                       (xBi);
-        return std::make_tuple(xContext, xMask);
+        return New<EncoderState>(EncoderState{xContext, xMask});
       }
       else {
         auto xContext = concatenate({xFw, xBw}, axis=1);
-        return std::make_tuple(xContext, xMask);
+        return New<EncoderState>(EncoderState{xContext, xMask});
       }
     }
 };
@@ -78,14 +81,15 @@ class DecoderGNMT : public DecoderBase {
     Ptr<GlobalAttention> attention_;
 
   public:
-    DecoderGNMT(Ptr<Config> options)
-     : DecoderBase(options) {}
+
+    template <class ...Args>
+    DecoderGNMT(Ptr<Config> options, Args ...args)
+     : DecoderBase(options, args...) {}
 
     virtual std::tuple<Expr, std::vector<Expr>>
     step(Expr embeddings,
          std::vector<Expr> states,
-         Expr context,
-         Expr contextMask,
+         Ptr<EncoderState> encState,
          bool single) {
       using namespace keywords;
 
@@ -95,28 +99,31 @@ class DecoderGNMT : public DecoderBase {
       bool layerNorm = options_->get<bool>("normalize");
       bool skipDepth = options_->get<bool>("skip");
       size_t decoderLayers = options_->get<size_t>("layers-dec");
-      float dropoutRnn = options_->get<float>("dropout-rnn");
-      float dropoutTrg = options_->get<float>("dropout-trg");
+
+      float dropoutRnn = inference_ ? 0 : options_->get<float>("dropout-rnn");
+      float dropoutTrg = inference_ ? 0 : options_->get<float>("dropout-trg");
 
       auto graph = embeddings->graph();
 
       if(dropoutTrg) {
+        int dimBatch = embeddings->shape()[0];
         int trgWords = embeddings->shape()[2];
-        auto trgWordDrop = graph->dropout(dropoutTrg, {1, 1, trgWords});
+        auto trgWordDrop = graph->dropout(dropoutTrg, {dimBatch, 1, trgWords});
         embeddings = dropout(embeddings, mask=trgWordDrop);
       }
 
       if(!attention_)
         attention_ = New<GlobalAttention>("decoder",
-                                          context, dimDecState,
-                                          mask=contextMask,
+                                          encState,
+                                          dimDecState,
+                                          dropout_prob=dropoutRnn,
                                           normalize=layerNorm);
       RNN<CGRU> rnnL1(graph, "decoder",
                       dimTrgEmb, dimDecState,
                       attention_,
-                      normalize=layerNorm,
-                      dropout_prob=dropoutRnn
-                      );
+                      dropout_prob=dropoutRnn,
+                      normalize=layerNorm);
+
       auto stateL1 = rnnL1(embeddings, states[0]);
       auto alignedContext = single ?
         rnnL1.getCell()->getLastContext() :

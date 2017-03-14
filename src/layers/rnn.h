@@ -370,17 +370,16 @@ class GRU {
       layerNorm_ = Get(keywords::normalize, false, args...);
 
       dropout_ = Get(keywords::dropout_prob, 0.0f, args...);
+      if(dropout_> 0.0f) {
+        dropMaskX_ = graph->dropout(dropout_, {1, dimInput});
+        dropMaskS_ = graph->dropout(dropout_, {1, dimState});
+      }
 
       if(layerNorm_) {
         gamma1_ = graph->param(prefix + "_gamma1", {1, 3 * dimState},
                                keywords::init=inits::from_value(1.f));
         gamma2_ = graph->param(prefix + "_gamma2", {1, 3 * dimState},
                                keywords::init=inits::from_value(1.f));
-      }
-
-      if(dropout_> 0.0f) {
-        dropMaskX_ = graph->dropout(dropout_, {1, dimInput});
-        dropMaskS_ = graph->dropout(dropout_, {1, dimState});
       }
     }
 
@@ -392,7 +391,9 @@ class GRU {
     Expr apply1(Expr input) {
       if(dropMaskX_)
         input = dropout(input, keywords::mask=dropMaskX_);
+
       auto xW = dot(input, W_);
+
       if(layerNorm_)
         xW = layer_norm(xW, gamma1_);
       return xW;
@@ -400,10 +401,12 @@ class GRU {
 
     Expr apply2(Expr xW, Expr state,
                 Expr mask = nullptr) {
-      if(dropMaskS_)
-        state = dropout(state, keywords::mask=dropMaskS_);
 
-      auto sU = dot(state, U_);
+      auto stateDropped = state;
+      if(dropMaskS_)
+        stateDropped = dropout(state, keywords::mask=dropMaskS_);
+
+      auto sU = dot(stateDropped, U_);
 
       if(layerNorm_)
         sU = layer_norm(sU, gamma2_);

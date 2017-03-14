@@ -95,12 +95,17 @@ class GlobalAttention {
     Expr gammaContext_, betaContext_;
     Expr gammaState_, betaState_;
 
-    Expr context_;
+    Ptr<EncoderState> encState_;
     Expr softmaxMask_;
     Expr mappedContext_;
     std::vector<Expr> contexts_;
     std::vector<Expr> alignments_;
     bool layerNorm_;
+
+    float dropout_;
+    Expr contextDropped_;
+    Expr dropMaskContext_;
+    Expr dropMaskState_;
 
     Expr cov_;
 
@@ -108,17 +113,17 @@ class GlobalAttention {
 
     template <typename ...Args>
     GlobalAttention(const std::string prefix,
-              Expr context,
+              Ptr<EncoderState> encState,
               int dimDecState,
               Args ...args)
-     : context_(context),
-       softmaxMask_(nullptr),
+     : encState_(encState),
+       contextDropped_(encState->context),
        layerNorm_(Get(keywords::normalize, false, args...)),
        cov_(Get(keywords::coverage, nullptr, args...)) {
 
-      int dimEncState = context->shape()[1];
+      int dimEncState = encState_->context->shape()[1];
 
-      auto graph = context->graph();
+      auto graph = encState_->context->graph();
 
       Wa_ = graph->param(prefix + "_W_comb_att", {dimDecState, dimEncState},
                          keywords::init=inits::glorot_uniform);
@@ -129,19 +134,28 @@ class GlobalAttention {
       ba_ = graph->param(prefix + "_b_att", {1, dimEncState},
                          keywords::init=inits::zeros);
 
+      dropout_ = Get(keywords::dropout_prob, 0.0f, args...);
+      if(dropout_> 0.0f) {
+        dropMaskContext_ = graph->dropout(dropout_, {1, dimEncState});
+        dropMaskState_ = graph->dropout(dropout_, {1, dimDecState});
+      }
+
+      if(dropMaskContext_)
+        contextDropped_ = dropout(contextDropped_, keywords::mask=dropMaskContext_);
+
       if(layerNorm_) {
         gammaContext_ = graph->param(prefix + "_att_gamma1", {1, dimEncState},
                                      keywords::init=inits::from_value(1.0));
         gammaState_ = graph->param(prefix + "_att_gamma2", {1, dimEncState},
                                    keywords::init=inits::from_value(1.0));
 
-        mappedContext_ = layer_norm(dot(context_, Ua_), gammaContext_, ba_);
+        mappedContext_ = layer_norm(dot(contextDropped_, Ua_), gammaContext_, ba_);
       }
       else {
-        mappedContext_ = affine(context_, Ua_, ba_);
+        mappedContext_ = affine(contextDropped_, Ua_, ba_);
       }
 
-      auto softmaxMask = Get(keywords::mask, nullptr, args...);
+      auto softmaxMask = encState_->mask;
       if(softmaxMask) {
         Shape shape = { softmaxMask->shape()[2],
                         softmaxMask->shape()[0] };
@@ -152,9 +166,12 @@ class GlobalAttention {
     Expr apply(Expr state) {
       using namespace keywords;
 
-      int dimBatch = context_->shape()[0];
-      int srcWords = context_->shape()[2];
+      int dimBatch = contextDropped_->shape()[0];
+      int srcWords = contextDropped_->shape()[2];
       int dimBeam  = state->shape()[3];
+
+      if(dropMaskState_)
+        state = dropout(state, keywords::mask=dropMaskState_);
 
       auto mappedState = dot(state, Wa_);
       if(layerNorm_)
@@ -167,7 +184,7 @@ class GlobalAttention {
                        {dimBatch, 1, srcWords, dimBeam});
       // <- horrible
 
-      auto alignedSource = weighted_average(context_, e, axis=2);
+      auto alignedSource = weighted_average(encState_->context, e, axis=2);
 
       contexts_.push_back(alignedSource);
       alignments_.push_back(e);
@@ -179,7 +196,7 @@ class GlobalAttention {
     }
 
     int outputDim() {
-      return context_->shape()[1];
+      return encState_->context->shape()[1];
     }
 };
 

@@ -6,6 +6,7 @@
 
 #include "common/definitions.h"
 #include "common/logging.h"
+#include "training/config.h"
 #include "graph/chainable.h"
 #include "graph/parameters.h"
 #include "graph/node_operators.h"
@@ -76,7 +77,7 @@ class ExpressionGraph : public std::enable_shared_from_this<ExpressionGraph> {
       params_.init(device);
       tensors_ = New<TensorAllocator>(device);
       cublasHandle_ = create_handle(device);
-      curandGenerator_ = createCurandGenerator(device, 1234);
+      curandGenerator_ = createCurandGenerator(device, Config::seed);
     }
 
     cublasHandle_t getCublasHandle() {
@@ -458,7 +459,7 @@ class ExpressionGraph : public std::enable_shared_from_this<ExpressionGraph> {
     void load(const std::string& name) {
       using namespace keywords;
 
-      LOG(info) << "Loading model from " << name;
+      LOG(info, "Loading model from {}", name);
 
       auto numpy = cnpy::npz_load(name);
 
@@ -481,7 +482,7 @@ class ExpressionGraph : public std::enable_shared_from_this<ExpressionGraph> {
     }
 
     void save(const std::string& name) {
-      LOG(info) << "Saving model to " << name;
+      LOG(info, "Saving model to {}", name);
 
       unsigned shape[2];
       std::string mode = "w";
