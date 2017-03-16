@@ -11,6 +11,9 @@
 namespace marian {
 
 struct EncoderState {
+  EncoderState()
+  {}
+
   EncoderState(Expr c, Expr m) : context(c), mask(m)
   {}
 
@@ -54,7 +57,7 @@ class EncoderBase {
      : options_(options),
        prefix_(Get(keywords::prefix, "encoder", args...)),
        inference_(Get(keywords::inference, false, args...))
-      {}
+    {}
 
     virtual Ptr<EncoderState>
     build(Ptr<ExpressionGraph>, Ptr<data::CorpusBatch>, size_t = 0) = 0;
