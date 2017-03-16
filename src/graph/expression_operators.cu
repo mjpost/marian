@@ -142,9 +142,9 @@ Expr layer_norm(Expr x, Expr gamma, Expr beta) {
 }
 
 #ifdef CUDNN
-Expr convolution(Expr x, Expr filters, int hPad, int wPad) {
+Expr convolution(Expr x, Expr filters) {
   std::vector<Expr> nodes = {x, filters};
-  return Expression<ConvolutionOp>(nodes, hPad, wPad);
+  return Expression<ConvolutionOp>(nodes);
 }
 
 Expr max_pooling(Expr x, int hPad, int wPad, int height, int width) {
