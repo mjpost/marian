@@ -211,6 +211,7 @@ void Config::addOptions(int argc, char** argv, bool doValidate) {
      "Dropout source words (0 = no dropout)")
     ("dropout-trg", po::value<float>()->default_value(0),
      "Dropout target words (0 = no dropout)")
+    ("conv-stack", po::value<int>()->default_value(1), "Number of conv nets in encoder")
   ;
 
   po::options_description opt("Optimizer options");
@@ -324,6 +325,7 @@ void Config::addOptions(int argc, char** argv, bool doValidate) {
   SET_OPTION("dropout-rnn", float);
   SET_OPTION("dropout-src", float);
   SET_OPTION("dropout-trg", float);
+  SET_OPTION("conv-stack", int);
   SET_OPTION("skip", bool);
 
   if(doValidate)
