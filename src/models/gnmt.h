@@ -67,11 +67,11 @@ class EncoderGNMT : public EncoderBase {
                        skip=skipDepth,
                        dropout_prob=dropoutRnn)
                       (xBi);
-        return New<EncoderState>(EncoderState{xContext, xMask});
+        return New<EncoderState>(EncoderState(xContext, xMask));
       }
       else {
         auto xContext = concatenate({xFw, xBw}, axis=1);
-        return New<EncoderState>(EncoderState{xContext, xMask});
+        return New<EncoderState>(EncoderState(xContext, xMask));
       }
     }
 };
