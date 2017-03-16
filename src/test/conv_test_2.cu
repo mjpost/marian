@@ -19,16 +19,18 @@ int main(int argc, char** argv) {
 
   auto options = New<Config>(argc, argv, false);
 
-  int batchSize = 2;
+  int numWords = 4;
+  int dimWord = 3;
+  int numBatches = 2;
+  int numLayers = 1;
 
-  std::vector<float> temp(batchSize * 9);
-  for (size_t i = 0; i < temp.size(); ++i) {
-    temp[i] = i + 1;
+  std::vector<float> embData(numBatches * numWords * dimWord);
+  std::vector<float> embMask(numBatches * numWords * dimWord);
+
+  for (size_t i = 0; i < embData.size(); ++i) {
+    embData[i] = i;
+    embMask[i] = 1;
   }
-
-  const int numKernels = 6;
-  const int kernelHeight = 3;
-  const int kernelWidth = 2;
 
   std::cerr << "Building graph" << std::endl;
   {
@@ -36,24 +38,33 @@ int main(int argc, char** argv) {
     graph->setDevice(0);
     graph->reserveWorkspaceMB(128);
 
-    auto x = graph->param("x", {batchSize, 1, 3, 3}, init=inits::from_vector(temp));
+    auto x = graph->param("x", {numBatches, dimWord, numWords}, init=inits::from_vector(embData));
 
-    auto convLayer = Convolution("conv_layer")(x, numKernels, kernelHeight, kernelWidth, 0,0,
-        -1, -1, 0, 0);
+    auto xMask = graph->constant(shape={numBatches, 1, numWords}, init=inits::from_vector(embMask));
 
-    /* auto y = convolution(x, filter); */
-    /* auto pool = max_pooling(y); */
+    auto convLayer = MultiConvLayer("enc_", 2) (x, xMask);
 
     auto cost = sum(convLayer, keywords::axis=1);
 
     debug(x, "x");
     debug(convLayer, "conv");
-    debug(cost, "cost");
+    /* debug(cost, "cost"); */
 
     std::cerr << "Forward" << std::endl;
     graph->forward();
+    cudaDeviceSynchronize();
+    std::vector<float> tmp;
+    convLayer->val() >> tmp;
+    for (auto f :  tmp) std::cerr << f  << " ";
+    std::cerr << std::endl;
     std::cerr << "Backward" << std::endl;
     graph->backward();
+    tmp.clear();
+    convLayer->grad() >> tmp;
+    cudaDeviceSynchronize();
+    std::cerr << "kon\n";
+    for (auto f :  tmp) std::cerr << f  << " ";
+    std::cerr << std::endl;
   }
 
   return 0;
