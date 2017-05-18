@@ -23,9 +23,9 @@ class EncoderBase {
                   Ptr<data::CorpusBatch> batch,
                   size_t index) {
       using namespace keywords;
-      
+
       auto subBatch = (*batch)[index];
-      
+
       int dimBatch = subBatch->batchSize();
       int dimEmb = srcEmbeddings->shape()[1];
       int dimWords = subBatch->batchWidth();
@@ -59,7 +59,7 @@ class DecoderBase {
     std::string prefix_{"decoder"};
     
     bool inference_{false};
-    
+
   public:
     
     template <class ...Args>
@@ -79,10 +79,10 @@ class DecoderBase {
 
       int dimVoc = options_->get<std::vector<int>>("dim-vocabs").back();
       int dimEmb = options_->get<int>("dim-emb");
-      
-      auto yEmb = Embedding(prefix_ + "_Wemb", dimVoc, dimEmb)(graph);
-      
-      auto subBatch = (*batch)[index];
+
+      auto yEmb = Embedding("Wemb_dec", dimVoc, dimEmb)(graph);
+
+      auto subBatch = batch->back();
       int dimBatch = subBatch->batchSize();
       int dimWords = subBatch->batchWidth();
 
@@ -109,7 +109,7 @@ class DecoderBase {
                                   Ptr<DecoderState> state,
                                   const std::vector<size_t>& embIdx) {
       using namespace keywords;
-      
+
       int dimTrgEmb = options_->get<int>("dim-emb");
       int dimPosEmb = options_->get<int>("dim-pos");
       int dimTrgVoc = options_->get<std::vector<int>>("dim-vocabs").back();
@@ -134,20 +134,19 @@ class DecoderBase {
 
 class EncoderDecoderBase {
   public:
-    
     virtual void load(Ptr<ExpressionGraph>,
                       const std::string&) = 0;
 
     virtual void save(Ptr<ExpressionGraph>,
                       const std::string&) = 0;
-    
+
     virtual void save(Ptr<ExpressionGraph>,
                       const std::string&, bool) = 0;
 
     virtual void selectEmbeddings(Ptr<ExpressionGraph> graph,
                                   Ptr<DecoderState> state,
                                   const std::vector<size_t>&) = 0;
-    
+
     virtual Ptr<DecoderState>
     step(Ptr<ExpressionGraph> graph,
          Ptr<DecoderState>,
@@ -201,7 +200,6 @@ class EncoderDecoder : public EncoderDecoderBase {
        inference_(Get(keywords::inference, false, args...))
     { }
     
-    
     Ptr<EncoderBase> getEncoder() {
       return encoder_;
     }
@@ -209,12 +207,12 @@ class EncoderDecoder : public EncoderDecoderBase {
     Ptr<DecoderBase> getDecoder() {
       return decoder_;
     }
-    
+
     virtual void load(Ptr<ExpressionGraph> graph,
                        const std::string& name) {
       graph->load(name);
     }
-    
+
     virtual void save(Ptr<ExpressionGraph> graph,
                       const std::string& name,
                       bool saveTranslatorConfig) {
@@ -222,13 +220,13 @@ class EncoderDecoder : public EncoderDecoderBase {
       graph->save(name);
       options_->saveModelParameters(name);
     }
-    
+
     virtual void save(Ptr<ExpressionGraph> graph,
                       const std::string& name) {
       graph->save(name);
       options_->saveModelParameters(name);
     }
-    
+
     virtual void clear(Ptr<ExpressionGraph> graph) {
       graph->clear();
       encoder_ = New<Encoder>(options_,
@@ -244,7 +242,7 @@ class EncoderDecoder : public EncoderDecoderBase {
                                          Ptr<data::CorpusBatch> batch) {
       return decoder_->startState(encoder_->build(graph, batch, batchIndices_.front()));
     }
-    
+
     virtual Ptr<DecoderState>
     step(Ptr<ExpressionGraph> graph,
          Ptr<DecoderState> state) {
@@ -294,7 +292,7 @@ class EncoderDecoder : public EncoderDecoderBase {
 
     Ptr<data::BatchStats> collectStats(Ptr<ExpressionGraph> graph) {
       auto stats = New<data::BatchStats>();
-      
+
       size_t step = 10;
       size_t maxLength = options_->get<size_t>("max-length");
       size_t numFiles = options_->get<std::vector<std::string>>("train-sets").size();

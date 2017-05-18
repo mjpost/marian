@@ -38,6 +38,7 @@ bool Config::has(const std::string& key) const {
 }
 
 YAML::Node Config::get(const std::string& key) const {
+  std::cerr << "getting: " << key << std::endl;
   return config_[key];
 }
 
@@ -195,8 +196,8 @@ void Config::addOptionsModel(po::options_description& desc, bool translate=false
     ("layer-normalization", po::value<bool>()->zero_tokens()->default_value(false),
      "Enable layer normalization")
     ("special-vocab", po::value<std::vector<size_t>>()->multitoken(),
-     "Model-specific special vocabulary ids");
-      
+     "Model-specific special vocabulary ids")
+    ("conv-enc-type", po::value<std::string>()->default_value("pooling"), "Convolutional encoder type");
 
   if(!translate) {
     model.add_options()
@@ -338,12 +339,11 @@ void Config::addOptionsTranslate(po::options_description& desc) {
       "Number of batches to preload for length-based sorting")
     ("n-best", po::value<bool>()->zero_tokens()->default_value(false),
       "Display n-best list")
-    ("lexical-table", po::value<std::string>(),                                                                                 
+    ("lexical-table", po::value<std::string>(),
      "Path to lexical table")
     ("weights", po::value<std::vector<float>>()
       ->multitoken(),
       "Scorer weights")
-    
   ;
   desc.add(translate);
 }
@@ -407,13 +407,14 @@ void Config::addOptions(int argc, char** argv,
   if (!vm_["vocabs"].empty()) {
     config_["vocabs"] = vm_["vocabs"].as<std::vector<std::string>>();
   }
-  
+
   SET_OPTION("type", std::string);
   SET_OPTION("dim-vocabs", std::vector<int>);
   SET_OPTION("dim-emb", int);
   SET_OPTION("dim-pos", int);
   SET_OPTION("dim-rnn", int);
   SET_OPTION("layers-enc", int);
+  SET_OPTION("conv-enc-type", std::string);
   SET_OPTION("layers-dec", int);
   SET_OPTION("skip", bool);
   SET_OPTION("layer-normalization", bool);
@@ -444,7 +445,7 @@ void Config::addOptions(int argc, char** argv,
     SET_OPTION("learn-rate", double);
     SET_OPTION("mini-batch-words", int);
     SET_OPTION("dynamic-batching", bool);
-    
+
     SET_OPTION("clip-norm", double);
     SET_OPTION("moving-average", bool);
     SET_OPTION("moving-decay", double);
