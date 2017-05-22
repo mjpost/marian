@@ -36,11 +36,9 @@ class Convolution : public Layer {
       for (int layerIdx = 0; layerIdx < depth_; ++layerIdx) {
         auto kernels = graph->param(name_ + "kernel_" + std::to_string(layerIdx), {kernelNum_, kernelHeight_},
                                     keywords::init=inits::glorot_uniform);
-        debug(kernels, "kernel_" + std::to_string(layerIdx));
         params_.push_back(kernels);
         auto input = *previousInput * newMaskX;
         auto output = tanh(input + convolution(input, kernels));
-        debug(output, "PO" + std::to_string(layerIdx));
         previousInput = &output;
       }
       auto reshapedOutput = reshape(*previousInput, {batchDim * sentenceDim, x->shape()[1],

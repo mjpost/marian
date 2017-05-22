@@ -238,7 +238,7 @@ class GlobalAttention {
     std::vector<Expr>& getContexts() {
       return contexts_;
     }
-    
+
     std::vector<Expr>& getAlignments() {
       return alignments_;
     }

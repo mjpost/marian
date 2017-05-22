@@ -944,7 +944,7 @@ struct MaxPoolingOp : public UnaryNodeOp {
 
     CUDNN_CALL( cudnnCreatePoolingDescriptor(&poolingDesc_) );
     CUDNN_CALL( cudnnSetPooling2dDescriptor(poolingDesc_,
-          CUDNN_POOLING_AVERAGE_COUNT_INCLUDE_PADDING,
+          CUDNN_POOLING_AVERAGE_COUNT_EXCLUDE_PADDING,
           CUDNN_NOT_PROPAGATE_NAN,
           5, 1,
           2, 0,
