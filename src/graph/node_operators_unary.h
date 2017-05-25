@@ -944,7 +944,7 @@ struct MaxPoolingOp : public UnaryNodeOp {
 
     CUDNN_CALL( cudnnCreatePoolingDescriptor(&poolingDesc_) );
     CUDNN_CALL( cudnnSetPooling2dDescriptor(poolingDesc_,
-          CUDNN_POOLING_AVERAGE_COUNT_EXCLUDE_PADDING,
+          CUDNN_POOLING_AVERAGE_COUNT_INCLUDE_PADDING,
           CUDNN_NOT_PROPAGATE_NAN,
           5, 1,
           2, 0,
@@ -996,7 +996,6 @@ struct MaxPoolingOp : public UnaryNodeOp {
     cudaSetDevice(adj_->getDevice());
     const float alpha = 1.0f;
     const float beta = 1.0f;
-    // std::cerr << "BACK " << std::endl;
     return {
       NodeOp(
         CUDNN_CALL( cudnnPoolingBackward(cudnnHandle_,
