@@ -79,7 +79,7 @@ class DecoderBase {
       using namespace keywords;
 
       int dimVoc = options_->get<std::vector<int>>("dim-vocabs").back();
-      int dimEmb = options_->get<int>("dim-emb");
+      int dimEmb = options_->get<std::vector<int>>("dim-emb").front();
 
       auto yEmb = Embedding(prefix_ + "_Wemb", dimVoc, dimEmb)(graph);
 
@@ -111,8 +111,8 @@ class DecoderBase {
                                   const std::vector<size_t>& embIdx) {
       using namespace keywords;
 
-      int dimTrgEmb = options_->get<int>("dim-emb");
-      int dimPosEmb = options_->get<int>("dim-pos");
+      int dimTrgEmb = options_->get<std::vector<int>>("dim-emb").front();
+      int dimPosEmb = options_->get<std::vector<int>>("dim-pos").front();
       int dimTrgVoc = options_->get<std::vector<int>>("dim-vocabs").back();
 
       Expr selectedEmbs;

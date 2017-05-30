@@ -71,17 +71,17 @@ class EncoderS2S : public EncoderBase {
     Ptr<EncoderState>
     build(Ptr<ExpressionGraph> graph,
           Ptr<data::CorpusBatch> batch,
-          size_t batchIdx) {
+          size_t encoderIdx) {
 
       using namespace keywords;
 
-      int dimSrcVoc = options_->get<std::vector<int>>("dim-vocabs")[batchIdx];
-      int dimSrcEmb = options_->get<int>("dim-emb");
+      int dimSrcVoc = options_->get<std::vector<int>>("dim-vocabs")[encoderIdx];
+      int dimSrcEmb = options_->get<std::vector<int>>("dim-emb")[encoderIdx];
 
-      int dimEncState = options_->get<int>("dim-rnn");
+      int dimEncState = options_->get<std::vector<int>>("dim-rnn")[encoderIdx];
       bool layerNorm = options_->get<bool>("layer-normalization");
       bool skipDepth = options_->get<bool>("skip");
-      size_t encoderLayers = options_->get<size_t>("layers-enc");
+      size_t encoderLayers = options_->get<std::vector<size_t>>("layers-enc")[encoderIdx];
 
       float dropoutRnn = inference_ ? 0 : options_->get<float>("dropout-rnn");
       float dropoutSrc = inference_ ? 0 : options_->get<float>("dropout-src");
@@ -89,7 +89,7 @@ class EncoderS2S : public EncoderBase {
       auto xEmb = Embedding(prefix_ + "_Wemb", dimSrcVoc, dimSrcEmb)(graph);
 
       Expr x, xMask;
-      std::tie(x, xMask) = prepareSource(xEmb, batch, batchIdx);
+      std::tie(x, xMask) = prepareSource(xEmb, batch, encoderIdx);
 
       if(dropoutSrc) {
         int dimBatch = x->shape()[0];
@@ -157,7 +157,7 @@ class DecoderS2S : public DecoderBase {
 
       bool layerNorm = options_->get<bool>("layer-normalization");
       auto start = Dense(prefix_ + "_ff_state",
-                         options_->get<int>("dim-rnn"),
+                         options_->get<std::vector<int>>("dim-rnn").back(),
                          activation=act::tanh,
                          normalize=layerNorm)(meanContext);
 
@@ -171,10 +171,10 @@ class DecoderS2S : public DecoderBase {
 
       int dimTrgVoc = options_->get<std::vector<int>>("dim-vocabs").back();
 
-      int dimTrgEmb = options_->get<int>("dim-emb")
-                    + options_->get<int>("dim-pos");
+      int dimTrgEmb = options_->get<std::vector<int>>("dim-emb").back()
+                    + options_->get<std::vector<int>>("dim-pos").back();
 
-      int dimDecState = options_->get<int>("dim-rnn");
+      int dimDecState = options_->get<std::vector<int>>("dim-rnn").back();
       bool layerNorm = options_->get<bool>("layer-normalization");
       bool skipDepth = options_->get<bool>("skip");
       size_t decoderLayers = options_->get<size_t>("layers-dec");

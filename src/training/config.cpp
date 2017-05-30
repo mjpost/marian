@@ -185,12 +185,26 @@ void Config::addOptionsModel(po::options_description& desc, bool translate=false
       ->multitoken()
       ->default_value(std::vector<int>({50000, 50000}), "50000 50000"),
       "Maximum items in vocabulary ordered by rank")
-    ("dim-emb", po::value<int>()->default_value(512), "Size of embedding vector")
-    ("dim-pos", po::value<int>()->default_value(0), "Size of position embedding vector")
-    ("dim-rnn", po::value<int>()->default_value(1024), "Size of rnn hidden state")
-    ("layers-enc", po::value<int>()->default_value(1), "Number of encoder layers")
+    ("dim-emb", po::value<std::vector<int>>()
+     ->multitoken()
+     ->default_value(std::vector<int>(2, 512), "512 512"),
+     "Size of embedding vector")
+    ("dim-pos", po::value<std::vector<int>>()
+     ->multitoken()
+     ->default_value(std::vector<int>(2, 0), "0 0"),
+     "Size of position embedding vector")
+    ("dim-rnn", po::value<std::vector<int>>()
+     ->multitoken()
+     ->default_value(std::vector<int>(2, 1024), "1024 1024"),
+     "Size of rnn hidden state")
+    ("layers-enc", po::value<std::vector<int>>()
+     ->multitoken()
+     ->default_value(std::vector<int>(1, 1), "1"),
+     "Number of encoder layers")
     ("layers-dec", po::value<int>()->default_value(1), "Number of decoder layers")
-    ("skip", po::value<bool>()->zero_tokens()->default_value(false),
+    ("skip", po::value<bool>()
+     ->zero_tokens()
+     ->default_value(false),
      "Use skip connections")
     ("layer-normalization", po::value<bool>()->zero_tokens()->default_value(false),
      "Enable layer normalization")
@@ -327,6 +341,8 @@ void Config::addOptionsTranslate(po::options_description& desc) {
       "Paths to vocabulary files have to correspond to --input.")
     ("beam-size,b", po::value<size_t>()->default_value(12),
       "Beam size used during search")
+    ("trans-prop", po::value<size_t>()->default_value(3),
+      "Proportion how many times the translation can be longer then source sentence")
     ("normalize,n", po::value<bool>()->zero_tokens()->default_value(false),
       "Normalize translation score by translation length")
     ("allow-unk", po::value<bool>()->zero_tokens()->default_value(false),
@@ -348,7 +364,6 @@ void Config::addOptionsTranslate(po::options_description& desc) {
     ("weights", po::value<std::vector<float>>()
       ->multitoken(),
       "Scorer weights")
-
   ;
   desc.add(translate);
 }
@@ -415,10 +430,10 @@ void Config::addOptions(int argc, char** argv,
 
   SET_OPTION("type", std::string);
   SET_OPTION("dim-vocabs", std::vector<int>);
-  SET_OPTION("dim-emb", int);
-  SET_OPTION("dim-pos", int);
-  SET_OPTION("dim-rnn", int);
-  SET_OPTION("layers-enc", int);
+  SET_OPTION("dim-emb", std::vector<int>);
+  SET_OPTION("dim-pos", std::vector<int>);
+  SET_OPTION("dim-rnn", std::vector<int>);
+  SET_OPTION("layers-enc", std::vector<int>);
   SET_OPTION("layers-dec", int);
   SET_OPTION("skip", bool);
   SET_OPTION("layer-normalization", bool);

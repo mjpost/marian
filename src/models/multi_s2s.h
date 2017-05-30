@@ -156,7 +156,7 @@ class MultiDecoderS2S : public DecoderBase {
       bool layerNorm = options_->get<bool>("layer-normalization");
 
       auto start = Dense("ff_state",
-                         options_->get<int>("dim-rnn"),
+                         options_->get<std::vector<int>>("dim-rnn").back(),
                          activation=act::tanh,
                          normalize=layerNorm)(meanContext1, meanContext2);
 
@@ -170,10 +170,10 @@ class MultiDecoderS2S : public DecoderBase {
 
       int dimTrgVoc = options_->get<std::vector<int>>("dim-vocabs").back();
 
-      int dimTrgEmb = options_->get<int>("dim-emb")
-                    + options_->get<int>("dim-pos");
+      int dimTrgEmb = options_->get<std::vector<int>>("dim-emb").back()
+                    + options_->get<std::vector<int>>("dim-pos").back();
 
-      int dimDecState = options_->get<int>("dim-rnn");
+      int dimDecState = options_->get<std::vector<int>>("dim-rnn").back();
       bool layerNorm = options_->get<bool>("layer-normalization");
       bool skipDepth = options_->get<bool>("skip");
       size_t decoderLayers = options_->get<size_t>("layers-dec");
