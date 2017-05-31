@@ -19,9 +19,11 @@
 namespace marian {
 
 class GraphGroup {
+  public:
+    Ptr<Reporter> reporter_;
+  
   protected:
     Ptr<Config> options_;
-    Ptr<Reporter> reporter_;
     Ptr<OptimizerBase> opt_;
 
     std::vector<Ptr<ExpressionGraph>> graphs_;
